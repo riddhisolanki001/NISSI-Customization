@@ -27,27 +27,52 @@ frappe.ui.form.on('Journal Entry', {
     },
 
     refresh(frm) {
-        const has_cash_role = has_cash_entry_role();
+    const has_cash_role = has_cash_entry_role();
 
-        if (has_cash_role) {
-            const grid = frm.fields_dict['accounts'].grid;
+    if (has_cash_role) {
+        const grid = frm.fields_dict['accounts'].grid;
 
-            grid.get_field('account').get_query = function () {
+        grid.get_field('account').get_query = function (doc, cdt, cdn) {
+            const row = locals[cdt][cdn];
+
+            if (!row.custom_type) {
                 return {
                     filters: {
-                        account_type: ['in', ['Expense Account', 'Cash']]
+                        name: 'Account type not selected'  
                     }
                 };
-            };
+            }
 
-            // Clear any pre-filled accounts
-            (frm.doc.accounts || []).forEach(row => {
-                if (row.account) {
-                    row.account = null;
+            if (row.custom_type === 'Credit') {
+                return {
+                    filters: {
+                        account_type: 'Expense Account'
+                    }
+                };
+            }
+
+            if (row.custom_type === 'Debit') {
+                return {
+                    filters: {
+                        account_type: 'Cash'
+                    }
+                };
+            }
+
+            return {
+                filters: {
+                    name: '__invalid__'
                 }
-            });
+            };
+        };
 
-            frm.refresh_field('accounts');
-        }
+        (frm.doc.accounts || []).forEach(row => {
+            if (!row.custom_type && row.account) {
+                row.account = null;
+            }
+        });
+
+        frm.refresh_field('accounts');
     }
+}
 });
