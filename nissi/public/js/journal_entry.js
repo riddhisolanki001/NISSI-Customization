@@ -45,16 +45,20 @@ frappe.ui.form.on('Journal Entry', {
 
             if (row.custom_type === 'Credit') {
                 return {
+                    query: 'nissi.py.filter.get_all_child_accounts',
                     filters: {
-                        account_type: 'Expense Account'
+                        type: 'Credit',
+                        company: frm.doc.company
                     }
                 };
             }
 
             if (row.custom_type === 'Debit') {
                 return {
+                    query: 'nissi.py.filter.get_all_child_accounts',
                     filters: {
-                        account_type: 'Cash'
+                        type: 'Debit',
+                        company: frm.doc.company
                     }
                 };
             }
