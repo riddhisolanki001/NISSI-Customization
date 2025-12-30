@@ -2,7 +2,6 @@ import frappe
 
 @frappe.whitelist()
 def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
-    # filters comes as dict (or JSON string)
     if isinstance(filters, str):
         filters = frappe.parse_json(filters)
 
@@ -11,35 +10,34 @@ def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
 
     abbr = frappe.db.get_value("Company", company, "abbr")
 
+    # ------------------------
+    # DEBIT → Expense accounts
+    # ------------------------
     if acc_type == "Debit":
-        parent_account = f"EXPENSES - {abbr}"
-
-        parent = frappe.get_value(
-            "Account",
-            parent_account,
-            ["lft", "rgt"],
-            as_dict=True
-        )
-        if not parent:
-            return []
-
         return frappe.db.sql("""
             SELECT name
             FROM `tabAccount`
-            WHERE lft > %s AND rgt < %s
-              AND is_group = 0
+            WHERE root_type = 'Expense'
+              AND company = %s
               AND name LIKE %s
             ORDER BY name
             LIMIT %s, %s
-        """, (parent.lft, parent.rgt, f"%{txt}%", start, page_len))
+        """, (company, f"%{txt}%", start, page_len))
 
+    # ------------------------
+    # CREDIT → Petty Cash children
+    # ------------------------
     elif acc_type == "Credit":
+        parent_account = f"PETTY CASH - {abbr}"
+
         return frappe.db.sql("""
             SELECT name
             FROM `tabAccount`
-            WHERE name = %s
+            WHERE parent_account = %s
+              AND company = %s
               AND name LIKE %s
+            ORDER BY name
             LIMIT %s, %s
-        """, (f"PETTY CASH - {abbr}", f"%{txt}%", start, page_len))
+        """, (parent_account, company, f"%{txt}%", start, page_len))
 
     return []
