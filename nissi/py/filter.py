@@ -28,7 +28,7 @@ def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
     # CREDIT → Petty Cash children
     # ------------------------
     elif acc_type == "Credit":
-        parent_account = f"PETTY CASH - {abbr}"
+        parent_account = f"PETTY CASH ACCOUNTS - {abbr}"
 
         return frappe.db.sql("""
             SELECT name
