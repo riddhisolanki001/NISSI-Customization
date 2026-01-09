@@ -1,5 +1,3 @@
-import frappe
-
 @frappe.whitelist()
 def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
     if isinstance(filters, str):
@@ -14,15 +12,19 @@ def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
     # DEBIT → Expense accounts
     # ------------------------
     if acc_type == "Debit":
-        return frappe.db.sql("""
-            SELECT name
-            FROM `tabAccount`
-            WHERE root_type = 'Expense'
-              AND company = %s
-              AND name LIKE %s
-            ORDER BY name
-            LIMIT %s, %s
-        """, (company, f"%{txt}%", start, page_len))
+        accounts = frappe.get_list(
+            "Account",
+            fields=["name"],
+            filters={
+                "root_type": "Expense",
+                "company": company,
+                "name": ["like", f"%{txt}%"]
+            },
+            start=start,
+            page_length=page_len,
+            ignore_permissions=False   # <<< ROLE PERMISSION APPLIES HERE
+        )
+        return [(d.name,) for d in accounts]
 
     # ------------------------
     # CREDIT → Petty Cash children
@@ -30,14 +32,19 @@ def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
     elif acc_type == "Credit":
         parent_account = f"PETTY CASH ACCOUNTS - {abbr}"
 
-        return frappe.db.sql("""
-            SELECT name
-            FROM `tabAccount`
-            WHERE parent_account = %s
-              AND company = %s
-              AND name LIKE %s
-            ORDER BY name
-            LIMIT %s, %s
-        """, (parent_account, company, f"%{txt}%", start, page_len))
+        accounts = frappe.get_list(
+            "Account",
+            fields=["name"],
+            filters={
+                "parent_account": parent_account,
+                "company": company,
+                "name": ["like", f"%{txt}%"]
+            },
+            start=start,
+            page_length=page_len,
+            ignore_permissions=False
+        )
+        return [(d.name,) for d in accounts]
 
     return []
+
