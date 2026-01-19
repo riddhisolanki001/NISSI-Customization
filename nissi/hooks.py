@@ -139,14 +139,18 @@ doctype_js = {"Payment Entry" : "public/js/payment_entry.js",
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
-
+doc_events = {
+	# "*": {
+	# 	"on_update": "method",
+	# 	"on_cancel": "method",
+	# 	"on_trash": "method"
+	# }
+ 
+    "Sales Invoice": {
+       "validate": "nissi.py.sales_invoice.collect_all_negative_stock_errors",
+    }
+    
+}
 # Scheduled Tasks
 # ---------------
 

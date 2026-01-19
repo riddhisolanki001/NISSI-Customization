@@ -23,7 +23,7 @@ def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
             },
             start=start,
             page_length=page_len,
-            ignore_permissions=False   # <<< ROLE PERMISSION APPLIES HERE
+            ignore_permissions=False   
         )
         return [(d.name,) for d in accounts]
 
@@ -31,21 +31,12 @@ def get_all_child_accounts(doctype, txt, searchfield, start, page_len, filters):
     # CREDIT → Petty Cash children
     # ------------------------
     elif acc_type == "Credit":
-        parent_account = f"PETTY CASH ACCOUNTS - {abbr}"
-
-        accounts = frappe.get_list(
-            "Account",
-            fields=["name"],
-            filters={
-                "parent_account": parent_account,
-                "company": company,
-                "name": ["like", f"%{txt}%"]
-            },
-            start=start,
-            page_length=page_len,
-            ignore_permissions=False
-        )
-        return [(d.name,) for d in accounts]
+        user = frappe.session.user
+        account_assignment = frappe.get_all(
+            "Petty Cash Account Assignment",
+            filters={"user": user},fields=["account"])
+        if account_assignment:
+            return [(d.account,) for d in account_assignment]
 
     return []
 
