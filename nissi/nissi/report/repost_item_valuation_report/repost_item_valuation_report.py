@@ -1,11 +1,35 @@
 import frappe
 
+
 def execute(filters=None):
     columns = [
-        {"label": "Item Code", "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 300},
-        {"label": "Warehouse", "fieldname": "warehouse", "fieldtype": "Link", "options": "Warehouse", "width": 300},
-        {"label": "Repost Item Valuation", "fieldname": "repost_item_valuation", "fieldtype": "Link", "options": "Repost Item Valuation", "width": 200},
-        {"label": "Repost Status", "fieldname": "repost_status", "fieldtype": "Data", "width": 150},
+        {
+            "label": "Item Code",
+            "fieldname": "item_code",
+            "fieldtype": "Link",
+            "options": "Item",
+            "width": 300,
+        },
+        {
+            "label": "Warehouse",
+            "fieldname": "warehouse",
+            "fieldtype": "Link",
+            "options": "Warehouse",
+            "width": 300,
+        },
+        {
+            "label": "Repost Item Valuation",
+            "fieldname": "repost_item_valuation",
+            "fieldtype": "Link",
+            "options": "Repost Item Valuation",
+            "width": 200,
+        },
+        {
+            "label": "Repost Status",
+            "fieldname": "repost_status",
+            "fieldtype": "Data",
+            "width": 150,
+        },
     ]
 
     # Build filters
@@ -37,10 +61,15 @@ def execute(filters=None):
 
     # Report Summary
     total_records = len(data)
-    total_completed = len([row for row in data if row.get("repost_status") == "Completed"])
+    total_completed = len(
+        [row for row in data if row.get("repost_status") == "Completed"]
+    )
     total_failed = len([row for row in data if row.get("repost_status") == "Failed"])
     total_queued = len([row for row in data if row.get("repost_status") == "Queued"])
-    total_in_progress = len([row for row in data if row.get("repost_status") == "In Progress"])
+    total_in_progress = len(
+        [row for row in data if row.get("repost_status") == "In Progress"]
+    )
+    total_skipped = len([row for row in data if row.get("repost_status") == "Skipped"])
 
     report_summary = [
         {"value": total_records, "indicator": "Blue", "label": "Total Records"},
@@ -48,6 +77,7 @@ def execute(filters=None):
         {"value": total_failed, "indicator": "Red", "label": "Failed"},
         {"value": total_queued, "indicator": "Orange", "label": "Queued"},
         {"value": total_in_progress, "indicator": "Yellow", "label": "In Progress"},
+        {"value": total_skipped, "indicator": "grey", "label": "Skipped"},
     ]
 
     return columns, data, None, None, report_summary
