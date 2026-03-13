@@ -24,58 +24,45 @@ frappe.query_reports["Repost Item Valuation Report"] = {
 	],
 
 	onload: function (report) {
-		report.page.set_title("Repost Item Valuation Report");
-
-		// Container for summary cards
-		report.summary_area = $('<div class="repost-summary d-flex mb-3"></div>').prependTo(report.wrapper);
-	},
-
-	on_refresh: function (report) {
-		const grid = report.data_area.get_datatable();
-
-		// Highlight rows by status
-		if (grid) {
-			grid.data.forEach(row => {
-				const status = row.repost_status;
-				if (status === "Failed") {
-					grid.set_row_style(row, { background: "#ffcdd2" }); // light red
-				} else if (status === "Completed") {
-					grid.set_row_style(row, { background: "#c8e6c9" }); // light green
-				} else if (status === "Queued") {
-					grid.set_row_style(row, { background: "#ffe0b2" }); // light orange
-				} else if (status === "In Progress") {
-					grid.set_row_style(row, { background: "#fff9c4" }); // light yellow
-				} else if (status === "Skipped") {
-					grid.set_row_style(row, { background: "#e0e0e0" }); // light yellow
-				} else if (!status) {
-					grid.set_row_style(row, { background: "#e0e0e0" }); // grey for remaining
-				}
+		report.page.add_inner_button("Clear Filter", function () {
+			// Reset all filters to null/empty
+			let filter_fields = ["item_code", "warehouse", "repost_status"];
+			filter_fields.forEach((field) => {
+				// if (field === "remaining_repost") {
+				// 	frappe.query_report.set_filter_value(field, 0);
+				// } else {
+				frappe.query_report.set_filter_value(field, null);
+				// }
 			});
-		}
 
-		// Compute summary dynamically
-		const data = grid ? grid.data : [];
-		const total_records = data.length;
-		const total_completed = data.filter(d => d.repost_status === "Completed").length;
-		const total_failed = data.filter(d => d.repost_status === "Failed").length;
-		const total_queued = data.filter(d => d.repost_status === "Queued").length;
-		const total_in_progress = data.filter(d => d.repost_status === "In Progress").length;
-		const total_skipped = data.filter(d => d.repost_status === "Skipped").length;
+			// Refresh the report
+			frappe.query_report.refresh();
+		});
 
+		report.page.add_inner_button("Go To Repost Item Valuation", function () {
+			let doc_url = frappe.urllib.get_full_url("/app/repost-item-valuation");
+			window.open(doc_url, "_blank");
+		});
 
-		// Render summary cards
-		const summary_html = `
-            <div class="d-flex gap-3 flex-wrap">
-                <div class="card p-2 bg-primary text-white">Total Records: ${total_records}</div>
-                <div class="card p-2 bg-success text-white">Completed: ${total_completed}</div>
-                <div class="card p-2 bg-danger text-white">Failed: ${total_failed}</div>
-                <div class="card p-2 bg-warning text-dark">Queued: ${total_queued}</div>
-                <div class="card p-2 bg-info text-dark">In Progress: ${total_in_progress}</div>
-				<div class="card p-2 bg-info text-dark">Skipped: ${total_skipped}</div>
+		report.page.add_inner_button("Repost Failed Items", function () {
 
-            </div>
-        `;
+			frappe.confirm(
+				"Repost ALL Failed Item Valuations?",
+				async function () {
 
-		report.summary_area.html(summary_html);
+					const res = await frappe.call({
+						method: "nissi.nissi.report.repost_item_valuation_report.repost_item_valuation_report.repost_failed_items",
+						freeze: true,
+						freeze_message: "Reposting all failed items..."
+					});
+
+					if (res.message) {
+						frappe.msgprint(`Reposted ${res.message.count} items`);
+						frappe.query_report.refresh();
+					}
+				}
+			);
+
+		});
 	}
 };
