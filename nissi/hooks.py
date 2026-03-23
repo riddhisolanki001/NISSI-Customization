@@ -172,6 +172,14 @@ doc_events = {
 # 	],
 # }
 
+# scheduler_events = {
+# 	"cron": {
+#         "00 22 * * *": [
+#             "nissi.nissi.report.repost_item_valuation_report.repost_item_valuation_report.auto_repost_item_valuation"
+#         ],
+#     }
+# }
+
 # Testing
 # -------
 

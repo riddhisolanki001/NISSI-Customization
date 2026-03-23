@@ -1,8 +1,43 @@
+# Copyright (c) 2025, Riddhi
+# For license information, please see license.txt
+
 import frappe
-from frappe.utils import now_datetime, nowdate
+
 
 def execute(filters=None):
-    columns = [
+    filters = filters or {}
+
+    columns = get_columns()
+
+    data = get_data(filters)
+
+    #  SUMMARY ON FILTERED DATA
+    total_records = len(data)
+
+    total_completed = sum(1 for d in data if d.get("status") == "Completed")
+    total_failed = sum(1 for d in data if d.get("status") == "Failed")
+    total_queued = sum(1 for d in data if d.get("status") == "Queued")
+    total_in_progress = sum(1 for d in data if d.get("status") == "In Progress")
+    total_skipped = sum(1 for d in data if d.get("status") == "Skipped")
+    total_remaining = sum(1 for d in data if d.get("status") == "Remaining")
+
+    report_summary = [
+        {"value": total_records, "indicator": "Blue", "label": "Total Records"},
+        {"value": total_completed, "indicator": "Green", "label": "Completed"},
+        {"value": total_failed, "indicator": "Red", "label": "Failed"},
+        {"value": total_queued, "indicator": "Orange", "label": "Queued"},
+        {"value": total_skipped, "indicator": "Grey", "label": "Skipped"},
+        {"value": total_in_progress, "indicator": "Yellow", "label": "In Progress"},
+        {"value": total_remaining, "indicator": "Purple", "label": "Remaining"},
+    ]
+
+    return columns, data, None, None, report_summary
+
+
+# ---------------- COLUMNS ---------------- #
+def get_columns():
+    return [
+        {"label": "Date", "fieldname": "date", "fieldtype": "Date", "width": 120},
         {
             "label": "Item Code",
             "fieldname": "item_code",
@@ -15,160 +50,435 @@ def execute(filters=None):
             "fieldname": "warehouse",
             "fieldtype": "Link",
             "options": "Warehouse",
-            "width": 300,
+            "width": 250,
         },
         {
-            "label": "Repost Item Valuation",
-            "fieldname": "repost_item_valuation",
+            "label": "Repost Item Valuation ID",
+            "fieldname": "repost_item_valuation_id",
             "fieldtype": "Link",
             "options": "Repost Item Valuation",
-            "width": 200,
+            "width": 220,
         },
-        {
-            "label": "Repost Status",
-            "fieldname": "repost_status",
-            "fieldtype": "Data",
-            "width": 150,
-        },
+        {"label": "Status", "fieldname": "status", "fieldtype": "Data", "width": 120},
     ]
 
-    # Build filters
-    conditions = ["based_on = 'Item and Warehouse'"]
 
-    if filters:
-        if filters.get("item_code"):
-            conditions.append("item_code = %(item_code)s")
+# ---------------- DATA ---------------- #
+def get_data(filters):
+    conditions = ["sle.docstatus = 1", "sle.is_cancelled = 0"]
+    params = {}
 
-        if filters.get("warehouse"):
-            conditions.append("warehouse = %(warehouse)s")
+    if filters.get("posting_date"):
+        conditions.append("sle.posting_date = %(posting_date)s")
+        params["posting_date"] = filters["posting_date"]
 
-        if filters.get("repost_status"):
-            conditions.append("status = %(repost_status)s")
+    if filters.get("item_code"):
+        conditions.append("sle.item_code = %(item_code)s")
+        params["item_code"] = filters["item_code"]
+
+    if filters.get("warehouse"):
+        conditions.append("sle.warehouse = %(warehouse)s")
+        params["warehouse"] = filters["warehouse"]
 
     where_clause = " AND ".join(conditions)
 
     sql = f"""
-    SELECT
-        riv.item_code,
-        riv.warehouse,
-        riv.name AS repost_item_valuation,
-        riv.status AS repost_status,
-        riv.posting_date,
-        riv.posting_time
-    FROM
-        `tabRepost Item Valuation` riv
-    INNER JOIN (
+        WITH latest_sle AS (
+            SELECT
+                sle.posting_date,
+                sle.item_code,
+                sle.warehouse,
+                MAX(sle.posting_time) AS last_sle_time
+            FROM `tabStock Ledger Entry` sle
+            INNER JOIN `tabItem` item 
+                ON sle.item_code = item.name 
+                AND item.is_stock_item = 1
+            WHERE {where_clause}
+            GROUP BY 
+                sle.posting_date,
+                sle.item_code,
+                sle.warehouse
+        ),
+
+        latest_riv AS (
+            SELECT
+                riv.item_code,
+                riv.warehouse,
+                riv.posting_date,
+                riv.posting_time AS last_riv_time,
+                riv.name AS repost_item_valuation_id,
+                riv.status
+            FROM `tabRepost Item Valuation` riv
+            INNER JOIN (
+                SELECT
+                    item_code,
+                    warehouse,
+                    posting_date,
+                    MAX(posting_time) AS max_time
+                FROM `tabRepost Item Valuation`
+                WHERE based_on = 'Item and Warehouse'
+                GROUP BY item_code, warehouse, posting_date
+            ) latest
+            ON riv.item_code = latest.item_code
+            AND riv.warehouse = latest.warehouse
+            AND riv.posting_date = latest.posting_date
+            AND riv.posting_time = latest.max_time
+            WHERE riv.based_on = 'Item and Warehouse'
+        )
+
         SELECT
-            item_code,
-            warehouse,
-            MAX(CONCAT(posting_date,' ',posting_time)) AS latest_datetime
-        FROM
-            `tabRepost Item Valuation`
-        WHERE {where_clause}
-        GROUP BY item_code, warehouse
-    ) latest
-    ON
-        riv.item_code = latest.item_code
-        AND riv.warehouse = latest.warehouse
-        AND CONCAT(riv.posting_date,' ',riv.posting_time) = latest.latest_datetime
-    ORDER BY riv.item_code, riv.warehouse
+            sle.posting_date AS date,
+            sle.item_code,
+            sle.warehouse,
+
+            CASE
+                WHEN riv.last_riv_time IS NULL THEN NULL
+                WHEN sle.last_sle_time > riv.last_riv_time THEN NULL
+                ELSE riv.repost_item_valuation_id
+            END AS repost_item_valuation_id,
+
+            CASE
+                WHEN riv.last_riv_time IS NULL THEN 'Remaining'
+                WHEN sle.last_sle_time > riv.last_riv_time THEN 'Remaining'
+                ELSE riv.status
+            END AS status
+
+        FROM latest_sle sle
+
+        LEFT JOIN latest_riv riv
+            ON sle.item_code = riv.item_code
+            AND sle.warehouse = riv.warehouse
+            AND sle.posting_date = riv.posting_date
+
+        ORDER BY sle.posting_date DESC, sle.item_code, sle.warehouse
     """
 
-    data = frappe.db.sql(sql, filters, as_dict=True)
+    data = frappe.db.sql(sql, params, as_dict=True)
 
-    # Report Summary
-    total_records = len(data)
+    status_filter = filters.get("repost_status")
+    remaining_only = filters.get("remaining_repost")
 
-    total_completed = len(
-        [row for row in data if row.get("repost_status") == "Completed"]
-    )
-    total_failed = len([row for row in data if row.get("repost_status") == "Failed"])
-    total_queued = len([row for row in data if row.get("repost_status") == "Queued"])
-    total_in_progress = len(
-        [row for row in data if row.get("repost_status") == "In Progress"]
-    )
-    total_skipped = len([row for row in data if row.get("repost_status") == "Skipped"])
-    report_summary = [
-        {"value": total_records, "indicator": "Blue", "label": "Total Records"},
-        {"value": total_completed, "indicator": "Green", "label": "Completed"},
-        {"value": total_failed, "indicator": "Red", "label": "Failed"},
-        {"value": total_queued, "indicator": "Orange", "label": "Queued"},
-        {"value": total_in_progress, "indicator": "Yellow", "label": "In Progress"},
-        {"value": total_skipped, "indicator": "grey", "label": "Skipped"},
-        
-    ]
+    if status_filter and remaining_only:
+        data = [d for d in data if d.get("status") == "Remaining"]
 
-    return columns, data, None, None, report_summary
+    elif status_filter:
+        data = [d for d in data if d.get("status") == status_filter]
+
+    elif remaining_only:
+        data = [d for d in data if d.get("status") == "Remaining"]
+
+    return data
 
 
 import frappe
-from erpnext.stock.doctype.repost_item_valuation.repost_item_valuation import execute_repost_item_valuation
+from frappe.utils import getdate, now, nowdate
+from erpnext.stock.doctype.repost_item_valuation.repost_item_valuation import (
+    execute_repost_item_valuation,
+)
 
-import frappe
 
 
-import frappe
-from frappe.utils import nowdate, nowtime
-
+# !nissi.nissi.report.repost_item_valuation_report.repost_item_valuation_report.auto_repost_item_valuation
 
 @frappe.whitelist()
-def repost_failed_items():
+def auto_repost_item_valuation(posting_date=None):
+    """Auto create and submit Repost Item Valuation for all stock items of a posting date."""
 
-    reposted = []
+    posting_date = posting_date or nowdate()
 
-    conditions = ["based_on = 'Item and Warehouse'"]
-    conditions.append("status = 'Failed'")
-
-    where_clause = " AND ".join(conditions)
-
-    sql = f"""
-        SELECT
-            riv.item_code,
-            riv.warehouse
-        FROM
-            `tabRepost Item Valuation` riv
-        INNER JOIN (
+    # ---------------- SQL: Find items to repost ---------------- #
+    sql = """
+        WITH latest_sle AS (
             SELECT
-                item_code,
-                warehouse,
-                MAX(CONCAT(posting_date,' ',posting_time)) AS latest_datetime
-            FROM
-                `tabRepost Item Valuation`
-            WHERE {where_clause}
-            GROUP BY item_code, warehouse
-        ) latest
-        ON
-            riv.item_code = latest.item_code
+                sle.posting_date,
+                sle.item_code,
+                sle.warehouse,
+                MAX(sle.posting_time) AS last_sle_time
+            FROM `tabStock Ledger Entry` sle
+            INNER JOIN `tabItem` item 
+                ON sle.item_code = item.name 
+                AND item.is_stock_item = 1
+            WHERE sle.docstatus = 1
+              AND sle.is_cancelled = 0
+              AND sle.posting_date = %(posting_date)s
+            GROUP BY sle.posting_date, sle.item_code, sle.warehouse
+        ),
+
+        latest_riv AS (
+            SELECT
+                riv.item_code,
+                riv.warehouse,
+                riv.posting_date,
+                riv.posting_time AS last_riv_time,
+                riv.name,
+                riv.status
+            FROM `tabRepost Item Valuation` riv
+            INNER JOIN (
+                SELECT
+                    item_code,
+                    warehouse,
+                    posting_date,
+                    MAX(posting_time) AS max_time
+                FROM `tabRepost Item Valuation`
+                WHERE based_on = 'Item and Warehouse'
+                GROUP BY item_code, warehouse, posting_date
+            ) latest
+            ON riv.item_code = latest.item_code
             AND riv.warehouse = latest.warehouse
-            AND CONCAT(riv.posting_date,' ',riv.posting_time) = latest.latest_datetime
+            AND riv.posting_date = latest.posting_date
+            AND riv.posting_time = latest.max_time
+            WHERE riv.based_on = 'Item and Warehouse'
+        )
+
+        SELECT DISTINCT
+            sle.posting_date,
+            sle.item_code,
+            sle.warehouse
+        FROM latest_sle sle
+
+        LEFT JOIN latest_riv riv
+            ON sle.item_code = riv.item_code
+            AND sle.warehouse = riv.warehouse
+            AND sle.posting_date = riv.posting_date
+
+        WHERE
+            riv.last_riv_time IS NULL
+            OR sle.last_sle_time > riv.last_riv_time
+            OR riv.status = 'Failed'
+    """
+
+    data = frappe.db.sql(sql, {"posting_date": posting_date}, as_dict=True)
+
+    if not data:
+        return []
+
+    # ---------------- PROCESS ---------------- #
+    success_list = []
+    failed_list = []
+    created_rivs = []
+
+    seen = set()
+
+    for d in data:
+        key = (d["item_code"], d["warehouse"])
+        if key in seen:
+            continue
+        seen.add(key)
+
+        try:
+            # CREATE AND SUBMIT RIV
+            riv = frappe.new_doc("Repost Item Valuation")
+            riv.based_on = "Item and Warehouse"
+            riv.posting_date = posting_date
+            riv.posting_time = now()
+            riv.item_code = d["item_code"]
+            riv.warehouse = d["warehouse"]
+
+            riv.insert(ignore_permissions=True)
+            riv.submit()
+
+            created_rivs.append(riv.name)
+            success_list.append(f"{riv.item_code} - {riv.warehouse}")
+
+        except Exception:
+            failed_list.append(
+                {
+                    "item_code": d["item_code"],
+                    "warehouse": d["warehouse"],
+                    "error": "Execution Exception",
+                }
+            )
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"Auto Repost Creation Failed: {d['item_code']} - {d['warehouse']}",
+            )
+
+    # ---------------- EXECUTE ALL RIVs ---------------- #
+    if created_rivs:
+        execute_repost_item_valuation()
+
+    # ---------------- SUMMARY LOG ---------------- #
+    total_records = len(seen)
+    total_success = len(success_list)
+    total_failed = len(failed_list)
+
+    message = f"""
+    <h3>Auto Repost Summary</h3>
+    <b>Date:</b> {posting_date}<br>
+    <b>Total Picked:</b> {total_records}<br>
+    <b>Success:</b> {total_success}<br>
+    <b>Failed:</b> {total_failed}<br><br>
+    """
+
+    if success_list:
+        message += "<b>Success Items:</b><br><ul>"
+        for s in success_list[:100]:
+            message += f"<li>{s}</li>"
+        if len(success_list) > 100:
+            message += f"<li>... and {len(success_list) - 100} more</li>"
+        message += "</ul><br>"
+
+    if failed_list:
+        message += "<b>Failed Items:</b><br><ul>"
+        for f in failed_list[:100]:
+            message += f"<li>{f['item_code']} - {f['warehouse']} : {f['error']}</li>"
+        if len(failed_list) > 100:
+            message += f"<li>... and {len(failed_list) - 100} more</li>"
+        message += "</ul>"
+
+    frappe.log_error(message, "Auto Repost Item Valuation Summary")
+
+    return created_rivs
+
+
+
+
+
+# WHEN WE WANT TO REPOST ALL THE PAST ENTRIES
+@frappe.whitelist()
+def auto_repost_item_valuation_for_all():
+    """Auto create and submit Repost Item Valuation for all stock items of a posting date."""
+
+    # ---------------- SQL: Find items to repost ---------------- #
+    sql = """
+        WITH latest_sle AS (
+            SELECT
+                sle.posting_date,
+                sle.item_code,
+                sle.warehouse,
+                MAX(sle.posting_time) AS last_sle_time
+            FROM `tabStock Ledger Entry` sle
+            INNER JOIN `tabItem` item 
+                ON sle.item_code = item.name 
+                AND item.is_stock_item = 1
+            WHERE sle.docstatus = 1
+              AND sle.is_cancelled = 0
+            GROUP BY sle.posting_date, sle.item_code, sle.warehouse
+        ),
+
+        latest_riv AS (
+            SELECT
+                riv.item_code,
+                riv.warehouse,
+                riv.posting_date,
+                riv.posting_time AS last_riv_time,
+                riv.name,
+                riv.status
+            FROM `tabRepost Item Valuation` riv
+            INNER JOIN (
+                SELECT
+                    item_code,
+                    warehouse,
+                    posting_date,
+                    MAX(posting_time) AS max_time
+                FROM `tabRepost Item Valuation`
+                WHERE based_on = 'Item and Warehouse'
+                GROUP BY item_code, warehouse, posting_date
+            ) latest
+            ON riv.item_code = latest.item_code
+            AND riv.warehouse = latest.warehouse
+            AND riv.posting_date = latest.posting_date
+            AND riv.posting_time = latest.max_time
+            WHERE riv.based_on = 'Item and Warehouse'
+        )
+
+        SELECT DISTINCT
+            sle.posting_date,
+            sle.item_code,
+            sle.warehouse
+        FROM latest_sle sle
+
+        LEFT JOIN latest_riv riv
+            ON sle.item_code = riv.item_code
+            AND sle.warehouse = riv.warehouse
+            AND sle.posting_date = riv.posting_date
+
+        WHERE
+            riv.last_riv_time IS NULL
+            OR sle.last_sle_time > riv.last_riv_time
+            OR riv.status = 'Failed'
     """
 
     data = frappe.db.sql(sql, as_dict=True)
 
-    for row in data:
+    if not data:
+        return []
+
+    # ---------------- PROCESS ---------------- #
+    success_list = []
+    failed_list = []
+    created_rivs = []
+
+    seen = set()
+    
+    # AVOID DUPLICATES
+    for d in data:
+        key = (d["item_code"], d["warehouse"])
+        if key in seen:
+            continue
+        seen.add(key)
+
         try:
-            doc = frappe.new_doc("Repost Item Valuation")
+            # CREATE AND SUBMIT RIV
+            riv = frappe.new_doc("Repost Item Valuation")
+            riv.based_on = "Item and Warehouse"
+            riv.posting_date = getdate()
+            riv.posting_time = now()
+            riv.item_code = d["item_code"]
+            riv.warehouse = d["warehouse"]
 
-            doc.based_on = "Item and Warehouse"
-            doc.item_code = row.item_code
-            doc.warehouse = row.warehouse
+            riv.insert(ignore_permissions=True)
+            riv.submit()
 
-            # set posting datetime to NOW
-            doc.posting_date = nowdate()
-            doc.posting_time = nowtime()
+            created_rivs.append(riv.name)
+            success_list.append(f"{riv.item_code} - {riv.warehouse}")
 
-            doc.insert(ignore_permissions=True)
-            doc.submit()
-            execute_repost_item_valuation()
-            reposted.append(doc.name)
-
-        except Exception as e:
+        except Exception:
+            failed_list.append(
+                {
+                    "item_code": d["item_code"],
+                    "warehouse": d["warehouse"],
+                    "error": "Execution Exception",
+                }
+            )
             frappe.log_error(
-                f"Failed to create repost for {row.item_code} - {row.warehouse}: {str(e)}",
-                "Repost Failed Items",
+                frappe.get_traceback(),
+                f"Auto Repost Creation Failed: {d['item_code']} - {d['warehouse']}",
             )
 
-    return {
-        "count": len(reposted),
-        "reposted": reposted
-    }
+    # ---------------- EXECUTE ALL RIVs ---------------- #
+    if created_rivs:
+        execute_repost_item_valuation()
+
+    # ---------------- SUMMARY LOG ---------------- #
+    total_records = len(seen)
+    total_success = len(success_list)
+    total_failed = len(failed_list)
+
+    message = f"""
+    <h3>Auto Repost Summary</h3>
+    <b>Date:</b> {getdate()}<br>
+    <b>Total Picked:</b> {total_records}<br>
+    <b>Success:</b> {total_success}<br>
+    <b>Failed:</b> {total_failed}<br><br>
+    """
+
+    if success_list:
+        message += "<b>Success Items:</b><br><ul>"
+        for s in success_list[:100]:
+            message += f"<li>{s}</li>"
+        if len(success_list) > 100:
+            message += f"<li>... and {len(success_list) - 100} more</li>"
+        message += "</ul><br>"
+
+    if failed_list:
+        message += "<b>Failed Items:</b><br><ul>"
+        for f in failed_list[:100]:
+            message += f"<li>{f['item_code']} - {f['warehouse']} : {f['error']}</li>"
+        if len(failed_list) > 100:
+            message += f"<li>... and {len(failed_list) - 100} more</li>"
+        message += "</ul>"
+
+    frappe.log_error(message, "Auto Repost Item Valuation Summary")
+
+    return created_rivs
