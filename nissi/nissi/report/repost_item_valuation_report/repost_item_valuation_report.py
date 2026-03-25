@@ -177,8 +177,8 @@ from erpnext.stock.doctype.repost_item_valuation.repost_item_valuation import (
 )
 
 
-
 # !nissi.nissi.report.repost_item_valuation_report.repost_item_valuation_report.auto_repost_item_valuation
+
 
 @frappe.whitelist()
 def auto_repost_item_valuation(posting_date=None):
@@ -330,8 +330,13 @@ def auto_repost_item_valuation(posting_date=None):
 
     return created_rivs
 
-
-
+@frappe.whitelist()
+def repost_enqueue():
+    frappe.enqueue(
+        method="nissi.nissi.report.repost_item_valuation_report.repost_item_valuation_report.auto_repost_item_valuation_for_all",
+        queue="long",
+        timeout=8000,
+    )
 
 
 # WHEN WE WANT TO REPOST ALL THE PAST ENTRIES
@@ -410,7 +415,7 @@ def auto_repost_item_valuation_for_all():
     created_rivs = []
 
     seen = set()
-    
+
     # AVOID DUPLICATES
     for d in data:
         key = (d["item_code"], d["warehouse"])
