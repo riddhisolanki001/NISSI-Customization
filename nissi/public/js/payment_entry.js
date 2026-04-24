@@ -2,6 +2,18 @@ frappe.ui.form.on('Payment Entry', {
     refresh(frm) {
         if (frm.doc.docstatus !== 1) return;
 
+        let mode_of_payment = frm.doc.mode_of_payment;
+
+        if (mode_of_payment && mode_of_payment.includes('CHEQUE')) {
+            // Make posting_date editable ONLY for CHEQUE
+            frm.set_df_property('posting_date', 'read_only', 0);
+            frm.refresh_field('posting_date');
+        } else {
+            // Keep posting_date read-only for non-CHEQUE payments
+            frm.set_df_property('posting_date', 'read_only', 1);
+            frm.refresh_field('posting_date');
+        }
+
         let account = null;
         if (frm.doc.payment_type === "Receive") {
             account = frm.doc.paid_to;
@@ -39,7 +51,7 @@ frappe.ui.form.on('Payment Entry', {
                                     frm.reload_doc();
                                 }, 500);
                             }
-                            
+
                         });
                     });
                 }
