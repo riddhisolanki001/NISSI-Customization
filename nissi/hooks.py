@@ -43,9 +43,12 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Payment Entry" : "public/js/payment_entry.js",
-              "Material Request" : "public/js/material_request.js",
-              "Journal Entry": "public/js/journal_entry.js"}
+doctype_js = {
+    "Payment Entry": "public/js/payment_entry.js",
+    "Material Request": "public/js/material_request.js",
+    "Journal Entry": "public/js/journal_entry.js",
+    "Bank Clearance": "public/js/bank_clearance.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -140,16 +143,14 @@ doctype_js = {"Payment Entry" : "public/js/payment_entry.js",
 # Hook on document methods and events
 
 doc_events = {
-	# "*": {
-	# 	"on_update": "method",
-	# 	"on_cancel": "method",
-	# 	"on_trash": "method"
-	# }
- 
+    # "*": {
+    # 	"on_update": "method",
+    # 	"on_cancel": "method",
+    # 	"on_trash": "method"
+    # }
     "Sales Invoice": {
-       "validate": "nissi.py.sales_invoice.collect_all_negative_stock_errors",
+        "validate": "nissi.py.sales_invoice.collect_all_negative_stock_errors",
     }
-    
 }
 # Scheduled Tasks
 # ---------------
@@ -256,3 +257,19 @@ doc_events = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
+
+fixtures = [
+    {
+        "dt": "Custom Field",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Bank Clearance-custom_clearance_end_date",
+                    "Bank Clearance-custom_clearance_start_date",
+                ],
+            ]
+        ],
+    },
+]
