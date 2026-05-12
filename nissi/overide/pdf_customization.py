@@ -34,6 +34,7 @@ def custom_report_to_pdf(html=None, orientation="Landscape", **kwargs):
 
     else:
         pass
+  
 
     # Default handling for other reports
     make_access_log(file_type="PDF", method="PDF", page=html)
@@ -41,6 +42,3 @@ def custom_report_to_pdf(html=None, orientation="Landscape", **kwargs):
     frappe.local.response.filecontent = original_get_pdf(html, {"orientation": orientation})
     frappe.local.response.type = "pdf"
 
-
-import frappe.utils.print_format
-frappe.utils.print_format.report_to_pdf = custom_report_to_pdf
