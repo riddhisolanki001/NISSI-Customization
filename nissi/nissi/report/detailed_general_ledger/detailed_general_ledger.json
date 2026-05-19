@@ -1,0 +1,39 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2026-05-19 09:41:55.550302",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 0,
+ "is_standard": "Yes",
+ "json": "{\"columns\":[{\"fieldname\":\"posting_date\",\"fieldtype\":\"Date\",\"label\":\"Posting Date\",\"width\":120,\"id\":\"posting_date\",\"name\":\"Posting Date\",\"editable\":false},{\"fieldname\":\"account\",\"fieldtype\":\"Link\",\"label\":\"Account\",\"options\":\"Account\",\"width\":180,\"id\":\"account\",\"name\":\"Account\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"debit\",\"fieldtype\":\"Currency\",\"label\":\"Debit (GHS)\",\"options\":\"presentation_currency\",\"width\":130,\"id\":\"debit\",\"name\":\"Debit (GHS)\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"credit\",\"fieldtype\":\"Currency\",\"label\":\"Credit (GHS)\",\"options\":\"presentation_currency\",\"width\":130,\"id\":\"credit\",\"name\":\"Credit (GHS)\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"balance\",\"fieldtype\":\"Currency\",\"label\":\"Balance (GHS)\",\"options\":\"presentation_currency\",\"width\":130,\"id\":\"balance\",\"name\":\"Balance (GHS)\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"voucher_type\",\"label\":\"Voucher Type\",\"width\":120,\"id\":\"voucher_type\",\"name\":\"Voucher Type\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"voucher_subtype\",\"fieldtype\":\"Data\",\"label\":\"Voucher Subtype\",\"width\":180,\"id\":\"voucher_subtype\",\"name\":\"Voucher Subtype\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"voucher_no\",\"fieldtype\":\"Dynamic Link\",\"label\":\"Voucher No\",\"options\":\"voucher_type\",\"width\":180,\"id\":\"voucher_no\",\"name\":\"Voucher No\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"against\",\"label\":\"Against Account\",\"width\":120,\"id\":\"against\",\"name\":\"Against Account\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"party_type\",\"label\":\"Party Type\",\"width\":100,\"id\":\"party_type\",\"name\":\"Party Type\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"party\",\"label\":\"Party\",\"width\":100,\"id\":\"party\",\"name\":\"Party\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"cost_center\",\"label\":\"Cost Center\",\"options\":\"Cost Center\",\"width\":100,\"id\":\"cost_center\",\"name\":\"Cost Center\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"against_voucher_type\",\"label\":\"Against Voucher Type\",\"width\":100,\"id\":\"against_voucher_type\",\"name\":\"Against Voucher Type\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"against_voucher\",\"fieldtype\":\"Dynamic Link\",\"label\":\"Against Voucher\",\"options\":\"against_voucher_type\",\"width\":100,\"id\":\"against_voucher\",\"name\":\"Against Voucher\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"bill_no\",\"fieldtype\":\"Data\",\"label\":\"Supplier Invoice No\",\"width\":100,\"id\":\"bill_no\",\"name\":\"Supplier Invoice No\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"mode_of_payment\",\"fieldtype\":\"Link\",\"label\":\"Mode of Payment\",\"insert_after_index\":16,\"link_field\":{\"fieldname\":\"voucher_no\",\"names\":{}},\"doctype\":\"Payment Entry\",\"options\":\"Mode of Payment\",\"width\":100,\"id\":\"mode_of_payment\",\"name\":\"Mode of Payment\",\"editable\":false,\"compareValue\":null},{\"fieldname\":\"reference_no\",\"fieldtype\":\"Data\",\"label\":\"Cheque/Reference No\",\"insert_after_index\":17,\"link_field\":{\"fieldname\":\"voucher_no\",\"names\":{}},\"doctype\":\"Payment Entry\",\"width\":100,\"id\":\"reference_no\",\"name\":\"Cheque/Reference No\",\"editable\":false,\"compareValue\":null}],\"filters\":{\"company\":\"NISSI PHARMA LTD\",\"from_date\":\"2026-04-19\",\"to_date\":\"2026-04-19\",\"account\":[],\"party\":[],\"categorize_by\":\"Categorize by Voucher (Consolidated)\",\"cost_center\":[],\"project\":[],\"include_dimensions\":1,\"include_default_book_entries\":1}}",
+ "letter_head": null,
+ "modified": "2026-05-19 09:44:52.310200",
+ "modified_by": "Administrator",
+ "module": "Nissi",
+ "name": "DETAILED GENERAL LEDGER",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "GL Entry",
+ "reference_report": "General Ledger",
+ "report_name": "DETAILED GENERAL LEDGER",
+ "report_type": "Custom Report",
+ "roles": [
+  {
+   "role": "Auditor"
+  },
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "timeout": 0
+}
