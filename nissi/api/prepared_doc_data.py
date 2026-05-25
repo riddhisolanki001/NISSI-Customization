@@ -1,20 +1,30 @@
-import frappe, re
+import frappe
+import re
+import json
+import gzip
+from frappe.utils.file_manager import get_file_path
+
 
 @frappe.whitelist()
 def get_general_ledger_prepared_data():
+    """
+    Returns parsed data + applied filter values from the latest Prepared Report 
+    for General Ledger.
+    
+    FEATURES:
+        - Detects gzip and plain JSON storage
+        - Adds mode_of_payment field for Payment Entry rows
+        - Maps 'Voucher Subtype' to 'narration' field
+        - Ensures doc_name equals voucher_no for all voucher types
+    
+    UPDATED FIELDS:
+        - narration: Set to Voucher Subtype value
+        - doc_name: Payment Entry record name (for Payment Entry rows)
+        - mode_of_payment: Payment method from Payment Entry
+        - cheque_no: Reference number for non-withholding entries
+    """
     try:
-        """
-        Returns parsed data + applied filter values from the latest
-        Prepared Report for General Ledger.
-        Detects gzip and plain JSON storage.
-        
-        UPDATED: Adds mode_of_payment field for Payment Entry rows
-        """
-        import json
-        import gzip
-        from frappe.utils.file_manager import get_file_path
-
-        # Step 1: Get latest Prepared Report
+        # Step 1: Get latest Prepared Report for General Ledger
         pr = frappe.get_all(
             "Prepared Report",
             filters={"report_name": "General Ledger"},
@@ -24,7 +34,10 @@ def get_general_ledger_prepared_data():
         )
 
         if not pr:
-            return {"success": False, "message": "No Prepared Report found for General Ledger"}
+            return {
+                "success": False, 
+                "message": "No Prepared Report found for General Ledger"
+            }
 
         pr = pr[0]
         prepared_report_name = pr.name
@@ -45,7 +58,10 @@ def get_general_ledger_prepared_data():
         )
 
         if not file_doc:
-            return {"success": False, "message": "No report file found (maybe still generating?)"}
+            return {
+                "success": False, 
+                "message": "No report file found (maybe still generating?)"
+            }
 
         file_path = get_file_path(file_doc[0].file_url)
 
@@ -65,29 +81,40 @@ def get_general_ledger_prepared_data():
         last_row = data[-1] if len(data) > 0 else None
         second_last_row = data[-2] if len(data) > 1 else None
         
+        # Remove boundary rows (opening, total, closing)
         cleaned_data = data.copy()  
         if len(cleaned_data) > 0:
-            cleaned_data.pop(0)  
+            cleaned_data.pop(0)  # Remove opening row
         if len(cleaned_data) > 0:
-            cleaned_data.pop(-1)  
+            cleaned_data.pop(-1)  # Remove closing row
         if len(cleaned_data) > 1:
-            cleaned_data.pop(-1) 
+            cleaned_data.pop(-1)  # Remove total row
             
-        # Step 4: Add cheque_no, mode_of_payment & special Withholding Tax handling
+        # Step 4: Enrich data with additional fields
         payment_cache = {}
         withholding_cache = {}
         mode_of_payment_cache = {}
 
         for row in cleaned_data:
-            if row.get("voucher_type") == "Payment Entry" and row.get("voucher_no"):
-                pe_name = row.get("voucher_no")
+            # Get voucher_type and voucher_no
+            voucher_type = row.get("voucher_type")
+            voucher_no = row.get("voucher_no")
+            
+            # IMPORTANT: Set narration to Voucher Subtype
+            voucher_subtype = row.get("voucher_subtype")
+            row["narration"] = voucher_subtype
+            
+            # Set doc_name to voucher_no for all rows with voucher information
+            if voucher_no:
+                row["doc_name"] = voucher_no
+
+            # Special handling for Payment Entry rows
+            if voucher_type == "Payment Entry" and voucher_no:
+                pe_name = voucher_no
                 account_name = (row.get("account") or "").lower()
                 against_account = (row.get("against") or "").lower()
 
-                # Add doc_number (Payment Entry name/ID field)
-                row["doc_number"] = pe_name  # ← This IS the Payment Entry record name
-
-                # Fetch mode_of_payment (only for Payment Entry)
+                # Fetch mode_of_payment (cache to avoid repeated DB calls)
                 if pe_name not in mode_of_payment_cache:
                     mode_of_payment = frappe.db.get_value(
                         "Payment Entry",
@@ -98,7 +125,10 @@ def get_general_ledger_prepared_data():
 
                 row["mode_of_payment"] = mode_of_payment_cache.get(pe_name) or ""
 
-                if row.get("party_type") == "Supplier" and ("withholding" in account_name or "withholding" in against_account):
+                # Withholding Tax handling for Supplier payments
+                if row.get("party_type") == "Supplier" and (
+                    "withholding" in account_name or "withholding" in against_account
+                ):
                     if pe_name not in withholding_cache:
                         tax_category = frappe.db.get_value(
                             "Payment Entry",
@@ -110,13 +140,15 @@ def get_general_ledger_prepared_data():
                     tax_category = withholding_cache.get(pe_name)
 
                     if tax_category:
+                        # Extract percentage from tax category
                         match = re.search(r"(\d+(\.\d+)?)\s*%", tax_category)
                         if match:
                             percentage = match.group(1)
-                            row["remarks"] = f"Withholding Tax-{percentage}%"
+                            row["narration"] = f"Withholding Tax-{percentage}%"
 
                     row["cheque_no"] = None
 
+                # Non-withholding Payment Entry rows
                 else:
                     if pe_name not in payment_cache:
                         payment_cache[pe_name] = frappe.db.get_value(
@@ -126,7 +158,6 @@ def get_general_ledger_prepared_data():
                         )
 
                     row["cheque_no"] = payment_cache.get(pe_name)
-        
 
         return {
             "success": True,
@@ -141,4 +172,12 @@ def get_general_ledger_prepared_data():
         }
     
     except Exception as e:
-        frappe.log_error("get_general_ledger_prepared_data", frappe.get_traceback())
+        frappe.log_error(
+            "get_general_ledger_prepared_data",
+            frappe.get_traceback()
+        )
+        return {
+            "success": False,
+            "message": "Error processing General Ledger data",
+            "error": str(e)
+        }
