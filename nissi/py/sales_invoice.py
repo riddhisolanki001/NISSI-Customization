@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, cint, add_days, today
 import nissi
 
 def collect_all_negative_stock_errors(doc,method):
@@ -239,4 +239,51 @@ def collect_all_negative_stock_errors(doc,method):
         frappe.throw(
             f"{msg}",
             title="Insufficient Stock"
+        )
+
+
+def check_credit_days_overdue(doc, method):
+    if doc.is_return:
+        return
+
+    credit_days = frappe.db.get_value(
+        "Customer Credit Limit",
+        {"parent": doc.customer, "parenttype": "Customer", "company": doc.company},
+        "custom_credit_days",
+    )
+    if not credit_days:
+        return
+
+    credit_controller_role = frappe.db.get_single_value("Accounts Settings", "credit_controller")
+    if credit_controller_role and credit_controller_role in frappe.get_roles():
+        return
+
+    cutoff_date = add_days(today(), -cint(credit_days))
+
+    overdue = frappe.db.sql(
+        """
+        SELECT name, posting_date, outstanding_amount
+        FROM `tabSales Invoice`
+        WHERE customer = %s
+          AND company = %s
+          AND docstatus = 1
+          AND outstanding_amount > 0
+          AND posting_date < %s
+          AND name != %s
+        """,
+        (doc.customer, doc.company, cutoff_date, doc.name),
+        as_dict=True,
+    )
+
+    if overdue:
+        rows = "".join(
+            "<li>{name} &mdash; Posted: {posting_date}, Outstanding: {outstanding_amount}</li>".format(**inv)
+            for inv in overdue
+        )
+        frappe.throw(
+            frappe._(
+                "Cannot submit Sales Invoice. Customer {0} has unpaid invoice(s) beyond the "
+                "{1}-day credit period:<ul>{2}</ul>"
+            ).format(doc.customer, credit_days, rows),
+            title=frappe._("Credit Days Exceeded"),
         )

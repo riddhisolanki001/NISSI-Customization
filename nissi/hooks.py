@@ -150,6 +150,7 @@ doc_events = {
     # }
     "Sales Invoice": {
         "validate": "nissi.py.sales_invoice.collect_all_negative_stock_errors",
+        "on_submit": "nissi.py.sales_invoice.check_credit_days_overdue",
     }
 }
 # Scheduled Tasks
@@ -261,15 +262,6 @@ doc_events = {
 fixtures = [
     {
         "dt": "Custom Field",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    "Bank Clearance-custom_clearance_end_date",
-                    "Bank Clearance-custom_clearance_start_date",
-                ],
-            ]
-        ],
+        "filters": [["module", "in", ["Nissi"]]],
     },
 ]
