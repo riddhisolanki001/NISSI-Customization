@@ -242,6 +242,42 @@ def collect_all_negative_stock_errors(doc,method):
         )
 
 
+def check_credit_limit_on_validate(doc, method):
+    if doc.is_return:
+        return
+
+    from erpnext.selling.doctype.customer.customer import get_credit_limit, get_customer_outstanding
+
+    credit_limit = get_credit_limit(doc.customer, doc.company)
+    if not credit_limit:
+        return
+
+    credit_controller_role = frappe.db.get_single_value("Accounts Settings", "credit_controller")
+    if credit_controller_role and credit_controller_role in frappe.get_roles():
+        return
+
+    bypass_credit_limit_check_at_sales_order = frappe.db.get_value(
+        "Customer Credit Limit",
+        filters={"parent": doc.customer, "parenttype": "Customer", "company": doc.company},
+        fieldname="bypass_credit_limit_check",
+    )
+
+    customer_outstanding = get_customer_outstanding(
+        doc.customer, doc.company, bypass_credit_limit_check_at_sales_order
+    )
+    customer_outstanding += flt(doc.grand_total)
+
+    if flt(customer_outstanding) > flt(credit_limit):
+        frappe.msgprint(
+            frappe._(
+                "Credit limit has been crossed for customer {0} ({1}/{2}).<br><br>"
+                "Please contact your supervisor to extend the credit limits for {0}."
+            ).format(doc.customer, customer_outstanding, credit_limit),
+            title=frappe._("Credit Limit Crossed"),
+            raise_exception=1,
+        )
+
+
 def check_credit_days_overdue(doc, method):
     if doc.is_return:
         return
@@ -282,7 +318,7 @@ def check_credit_days_overdue(doc, method):
         )
         frappe.throw(
             frappe._(
-                "Cannot submit Sales Invoice. Customer {0} has unpaid invoice(s) beyond the "
+                "Customer {0} has unpaid invoice(s) beyond the "
                 "{1}-day credit period:<ul>{2}</ul>"
             ).format(doc.customer, credit_days, rows),
             title=frappe._("Credit Days Exceeded"),
