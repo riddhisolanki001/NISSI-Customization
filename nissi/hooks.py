@@ -149,8 +149,11 @@ doc_events = {
     # 	"on_trash": "method"
     # }
     "Sales Invoice": {
-        "validate": "nissi.py.sales_invoice.collect_all_negative_stock_errors",
-        "on_submit": "nissi.py.sales_invoice.check_credit_days_overdue",
+        "validate": [
+            "nissi.py.sales_invoice.collect_all_negative_stock_errors",
+            "nissi.py.sales_invoice.check_credit_limit_on_validate",
+            "nissi.py.sales_invoice.check_credit_days_overdue",
+        ],
     }
 }
 # Scheduled Tasks
